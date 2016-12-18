@@ -1,0 +1,100 @@
+doctype html
+html.
+  <h1>Comment Board</h1>
+  
+  <div id="comments"></div>
+  
+  <a id='login_button' href="">
+    Login
+  </a>
+  <div id='comment_box'>
+    <label>Message</label>
+    <input id="message"/>
+    <button onclick="comment()">SEND</button>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.1.1.min.js" integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="crossorigin="anonymous"></script>
+  
+  <script>
+  
+  var token,
+  //The scopes I'll want for my app
+    allScopes = [
+      'public_profile',
+      'email',
+    ];
+
+    if(location.search)
+    {
+      //If we have a token in the URL, remove login button and assign token
+      $('#login_button').css('display', 'none');
+      var access_token_beginning = location.search.indexOf('=')+1;
+      token = location.search.substring(access_token_beginning);
+    }
+    else {
+      //If we have not logged in, hide to comment box, and give the login button the appropriate link.
+      $('#comment_box').css('display', 'none');
+      $('#login_button').attr('href', 
+        'https://www.facebook.com/v2.8/dialog/oauth?'+
+        'client_id=157443981397695' +
+        '&response_type=code'+
+        '&redirect_uri=http://localhost:1337/oauth' + 
+        '&scope=' + allScopes.join(','));
+    }
+    
+    function comment(){
+      if(!token) return;
+      var message = $('#message').val();
+      if(!message) return;
+      $.ajax({
+        url: "/comment",
+        method:"post",
+        data:JSON.stringify({
+          token: token,
+          message: message
+        }),
+        success:function(){
+          //Clear out the values after a successful send.
+          $('#message').val('');
+          //Fetch the current comments
+          getComments();
+        }
+      });
+    }
+    
+    function getComments(){
+      $.ajax({
+        url: "/comments",
+        method:"get",
+        success:function(res){
+          let comments = $('#comments');
+          //Start from scratch. Inefficient, but good enough for our purposes.
+          comments.empty();
+          
+          for(let i in res.Items) {
+            //Use Dynamo data to create html
+            let data = res.Items[i], 
+              commentNode = $('<div>'),
+              imageNode = $('<img>').attr('src', data.pictureUrl.S),
+              messageNode = $('<p>').text(data.message.S),
+              userNode = $('<h4>').text('According to: ' + data.userName.S);
+              //Fun Fact: someVal|0 converts to someVal an integer... always! Try it!
+              createdDateNode = $('<p>').text('Posted: ' + (new Date(data.createdDateTime.N|0)).toString());
+              //create comment node
+              commentNode.append(
+                userNode,
+                imageNode,
+                messageNode,
+                createdDateNode
+              );
+              //insert comment into DOM
+              comments.append(commentNode);
+              
+              
+          }
+        }
+      });
+    }
+    //Get comments on page load
+    getComments();
+  </script>
